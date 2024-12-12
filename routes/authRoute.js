@@ -20,19 +20,25 @@ router.post('/register', async (req, res) => {
     }
 
     // Generate OTP (6-digit random number)
-    const otp = crypto.randomInt(100000, 999999).toString(); 
+    const otp = crypto.randomInt(100000, 999999).toString();
     const otpGeneratedTime = new Date(); // Record the time OTP is generated
 
     try {
         // Check if user already exists (by mobile or email)
-        const [existingUser] = await db.query('SELECT * FROM users WHERE mobile = ? OR email = ?', [mobile, email]);
-        if (existingUser.length > 0) {
+        const result = await db.query(
+            'SELECT * FROM users WHERE mobile = $1 OR email = $2',
+            [mobile, email]
+        );
+        
+        if (result.rows.length > 0) {
             return res.status(400).json({ message: 'User already exists with this mobile number or email.' });
         }
 
         // Insert the new user with the generated OTP
-        await db.query('INSERT INTO users (name, mobile, email, otp, otpGeneratedTime, isVerified) VALUES (?, ?, ?, ?, ?, ?)', 
-            [name, mobile, email, otp, otpGeneratedTime, false]);  // Default isVerified as false
+        await db.query(
+            'INSERT INTO users (name, mobile, email, otp, otpGeneratedTime, isVerified) VALUES ($1, $2, $3, $4, $5, $6)', 
+            [name, mobile, email, otp, otpGeneratedTime, false] // Default isVerified as false
+        );
 
         // In a real application, you would send the OTP to the user here via SMS/email
 
@@ -55,9 +61,12 @@ router.post('/check-mobile', async (req, res) => {
 
     try {
         // Query the database to check if the mobile number is registered
-        const [result] = await db.query('SELECT * FROM users WHERE mobile = ?', [mobile]);
+        const result = await db.query(
+            'SELECT * FROM users WHERE mobile = $1', 
+            [mobile]
+        );
 
-        if (result.length > 0) {
+        if (result.rows.length > 0) {
             // Mobile number exists, grant access to the next step
             return res.status(200).json({ message: 'Mobile number exists.', registered: true });
         } else {

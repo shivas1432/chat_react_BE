@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../config/db.js'; // Adjust the import based on your database configuration
 import crypto from 'crypto';
+import validator from 'validator';  // To validate email format
 
 const router = express.Router();
 
@@ -8,27 +9,35 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
     const { name, mobile, email } = req.body;
 
-    // Basic validation
+    // Basic validation for required fields
     if (!name || !mobile || !email) {
         return res.status(400).json({ message: 'Name, mobile, and email are required.' });
     }
 
-    const otp = crypto.randomInt(100000, 999999).toString(); // Generate OTP
+    // Validate email format
+    if (!validator.isEmail(email)) {
+        return res.status(400).json({ message: 'Invalid email format.' });
+    }
+
+    // Generate OTP (6-digit random number)
+    const otp = crypto.randomInt(100000, 999999).toString(); 
     const otpGeneratedTime = new Date(); // Record the time OTP is generated
 
     try {
-        // Check if user already exists
+        // Check if user already exists (by mobile or email)
         const [existingUser] = await db.query('SELECT * FROM users WHERE mobile = ? OR email = ?', [mobile, email]);
         if (existingUser.length > 0) {
             return res.status(400).json({ message: 'User already exists with this mobile number or email.' });
         }
 
         // Insert the new user with the generated OTP
-        await db.query('INSERT INTO users (name, mobile, email, otp, otpGeneratedTime) VALUES (?, ?, ?, ?, ?)', 
-            [name, mobile, email, otp, otpGeneratedTime]);
+        await db.query('INSERT INTO users (name, mobile, email, otp, otpGeneratedTime, isVerified) VALUES (?, ?, ?, ?, ?, ?)', 
+            [name, mobile, email, otp, otpGeneratedTime, false]);  // Default isVerified as false
 
-        // In a real application, you might send an OTP to the user here
-        return res.status(201).json({ message: 'User registered successfully.', otp }); // Include OTP for testing
+        // In a real application, you would send the OTP to the user here via SMS/email
+
+        // Respond with success (you can remove OTP in production)
+        return res.status(201).json({ message: 'User registered successfully.' }); // Omit OTP for security reasons
     } catch (error) {
         console.error('Error during registration:', error.message);
         return res.status(500).json({ message: 'Internal server error.', error: error.message });
@@ -39,14 +48,14 @@ router.post('/register', async (req, res) => {
 router.post('/check-mobile', async (req, res) => {
     const { mobile } = req.body;
 
-    // Validate the mobile number
+    // Validate mobile number (check if it's 10 digits or 11 digits with a leading 0)
     if (!mobile || !/^(0)?\d{10}$/.test(mobile)) {
         return res.status(400).json({ message: 'Invalid mobile number.' });
     }
 
     try {
         // Query the database to check if the mobile number is registered
-        const result = await db.query('SELECT * FROM users WHERE mobile = ?', [mobile]);
+        const [result] = await db.query('SELECT * FROM users WHERE mobile = ?', [mobile]);
 
         if (result.length > 0) {
             // Mobile number exists, grant access to the next step

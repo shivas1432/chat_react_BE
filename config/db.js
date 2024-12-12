@@ -1,29 +1,31 @@
-import mysql from 'mysql2/promise'; // Promise-compatible import
-import dotenv from 'dotenv';
+import pkg from 'pg'; // Default import for pg
+const { Pool } = pkg;  // Destructure to get Pool
 
-// Load environment variables
+import dotenv from 'dotenv';  
+
+
 dotenv.config();
 
-// Create a connection pool
-const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
+// Create a connection pool for PostgreSQL
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,  // Use the PostgreSQL DATABASE_URL environment variable
+    ssl: {
+        rejectUnauthorized: false,  // Allow self-signed certificates (important for Render SSL)
+    },
 });
 
 // Function to test the connection
 const testConnection = async () => {
     try {
-        const connection = await db.getConnection();
-        console.log('Connected to the database.');
-        connection.release(); // Release the connection back to the pool
+        const res = await pool.query('SELECT NOW()');  // Test query to check connection
+        console.log('Connected to the database:', res.rows);  // Display the current timestamp from the database
     } catch (err) {
-        console.error('Database connection failed:', err.message);
+        console.error('Database connection failed:', err.message);  // Catch and log errors
     }
 };
 
 // Test the connection when the module is loaded
 testConnection();
 
-export default db;
+// Export the pool for use in other files
+export default pool;
